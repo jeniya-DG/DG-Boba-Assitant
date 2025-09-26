@@ -15,9 +15,8 @@ A real-time voice ordering system for boba tea shops built with FastAPI, Twilio,
 ## Technology Stack
 
 * **Backend**: FastAPI (Python)
-* **Voice Services**: Deepgram (STT/TTS)
+* **Voice Services**: Deepgram (Voice Agent)
 * **Communication**: Twilio (Voice & SMS)
-* **AI Providers**: OpenAI, Google Gemini, Deepgram
 * **Protocol**: WebSockets for real-time audio streaming
 
 ## Prerequisites
