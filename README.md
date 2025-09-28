@@ -5,6 +5,27 @@ Customers call a phone number, place their order naturally, and receive SMS upda
 
 ---
 
+## ⚡ Quick Start (Local with Podman + ngrok)
+
+```bash
+# 1. Copy env file and fill in secrets
+cp sample.env.txt .env
+
+# 2. Start the app locally (build + run container)
+./podman-start.sh
+
+# 3. Expose to Twilio with ngrok
+ngrok http 8000
+```
+
+👉 Copy the ngrok HTTPS URL into `.env` as `VOICE_HOST`, then set your Twilio **Voice Webhook** to:
+
+```
+https://<VOICE_HOST>/voice
+```
+
+---
+
 ## ✨ Features
 
 * ☎️ **Voice Ordering** via Twilio Calls + Deepgram Realtime Agent
@@ -15,8 +36,6 @@ Customers call a phone number, place their order naturally, and receive SMS upda
 * 📦 **Containerized with Podman**, published to [quay.io](https://quay.io/repository/jeniya26/deepgram_bobarista)
 
 ---
-
-
 
 ## 📂 Project Architecture
 
@@ -36,13 +55,14 @@ app/
 ├── send_sms.py          # Twilio SMS: order received & order ready notifications
 └── orders.json          # Persistent order log (auto-reset at startup)
 
-Containerfile            # Podman/Docker build recipe
-.dockerignore            # Excludes secrets and build artifacts
-.env                     # Local runtime config (not committed, see sample.env.txt)
-requirements.txt         # Python dependencies
-README.md                # Documentation and usage guide
+Containerfile            # Podman/Docker build recipe  
+.dockerignore            # Excludes secrets and build artifacts  
+.env                     # Local runtime config (not committed; see sample.env.txt)  
+requirements.txt         # Python dependencies  
+README.md                # Documentation and usage guide  
+podman-start.sh          # Start/rebuild/run container for local dev  
+podman-stop.sh           # Stop/remove container (and optionally stop VM)  
 ```
-
 
 ---
 
@@ -52,41 +72,54 @@ README.md                # Documentation and usage guide
 
 * [Podman](https://podman.io/) installed (`brew install podman` on macOS)
 * [ngrok](https://ngrok.com/) installed
+* Copy sample env → `.env` and fill in your values:
 
-### 2. Start Podman VM (macOS/Linux)
+  ```bash
+  cp sample.env.txt .env
+  ```
+
+---
+
+### 2. Run with helper scripts
+
+**Start / rebuild / run:**
 
 ```bash
-podman machine init --cpus 4 --memory 4096 --disk-size 20
-podman machine start
+./podman-start.sh
 ```
 
-### 3. Build & run container
+This will:
+
+* Ensure the Podman VM is running
+* Remove any old `boba-voice` container
+* Build the image
+* Run the container on `http://localhost:8000`
+
+**Logs (follow):**
 
 ```bash
-# Build
-podman build -t boba-voice:local -f Containerfile .
-
-# Run with your .env
-podman run --rm -p 8000:8000 --env-file .env --name boba-voice boba-voice:local
+podman logs -f boba-voice
 ```
 
-### 4. Start ngrok
+**Expose to Twilio via ngrok:**
 
 ```bash
 ngrok http 8000
 ```
 
-Copy the HTTPS domain (e.g.
-`https://multifibered-example.ngrok-free.dev`) → put it in `.env` as `VOICE_HOST`.
-
-### 5. Set Twilio webhook
-
-In Twilio phone number settings:
-**Voice → A CALL COMES IN → Webhook (POST)**
+Copy the HTTPS URL into your `.env` as `VOICE_HOST`, then set your Twilio Voice webhook to:
 
 ```
 https://<VOICE_HOST>/voice
 ```
+
+**Stop / clean up:**
+
+```bash
+./podman-stop.sh
+```
+
+(Stops and removes the container, and optionally stops the Podman VM.)
 
 ---
 
@@ -120,28 +153,26 @@ podman run -d --name boba-voice \
 ## 📝 Sample `.env`
 
 ```bash
-# --- Twilio Environment Variables ---
+# --- Deepgram ---
 DEEPGRAM_API_KEY=**********
 
-
+# --- Twilio Voice (calls) ---
 TWILIO_ACCOUNT_SID=**********
 TWILIO_AUTH_TOKEN=**********
-TWILIO_FROM_E164=**********
-
-TWILIO_TO_E164=**********
+TWILIO_FROM_E164=+15551234567
+TWILIO_TO_E164=+15557654321
 
 # --- Agent config ---
 AGENT_LANGUAGE=en
 AGENT_TTS_MODEL=aura-2-odysseus-en
 AGENT_STT_MODEL=nova-3
 
-
-# --- Twilio SMS credentials (messaging) ---
+# --- Twilio SMS (messaging) ---
 MSG_TWILIO_ACCOUNT_SID=**********
 MSG_TWILIO_AUTH_TOKEN=**********
-MSG_TWILIO_FROM_E164=**********
+MSG_TWILIO_FROM_E164=+15559876543
 
-# --- Twilio Voice Agent (Realtime) ---
+# --- Hostname for Twilio <Stream> ---
 VOICE_HOST=multifibered-glossarially-martine.ngrok-free.dev
 WS_SCHEME=wss
 ```
@@ -150,27 +181,17 @@ WS_SCHEME=wss
 
 ## 🔧 Useful Commands
 
-### Logs
-
 ```bash
+# Logs (follow)
 podman logs -f boba-voice
-```
 
-### Stop
-
-```bash
+# Stop
 podman stop boba-voice
-```
 
-### Restart
-
-```bash
+# Restart
 podman start boba-voice
-```
 
-### Containers list
-
-```bash
+# List containers
 podman ps -a
 ```
 
@@ -178,8 +199,7 @@ podman ps -a
 
 ## 📺 Dashboards
 
-* Orders TV: `http://<host>:8000/orders`
-* Barista Console: `http://<host>:8000/barista`
-* Orders JSON: `http://<host>:8000/orders.json`
-
+* Orders TV → `http://<host>:8000/orders`
+* Barista Console → `http://<host>:8000/barista`
+* Orders JSON → `http://<host>:8000/orders.json`
 
