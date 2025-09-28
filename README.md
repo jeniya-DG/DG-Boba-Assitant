@@ -12,7 +12,7 @@ Customers call a phone number, place their order naturally, and receive SMS upda
 * 📲 **SMS Notifications** for order confirmation & pickup readiness
 * 📺 **Orders TV Dashboard** (`/orders`) shows in-progress drinks
 * 🍵 **Barista Console** (`/barista`) lets staff mark drinks “ready” → auto SMS
-* 📦 **Containerized with Podman**, published to [quay.io](https://quay.io/)
+* 📦 **Containerized with Podman**, published to [quay.io](https://quay.io/repository/jeniya26/deepgram_bobarista)
 
 ---
 
