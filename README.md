@@ -16,30 +16,33 @@ Customers call a phone number, place their order naturally, and receive SMS upda
 
 ---
 
+
+
 ## 📂 Project Architecture
 
 ```
 app/
 ├── main.py              # FastAPI entrypoint
-├── app_factory.py       # App creation + lifespan
-├── settings.py          # Config + prompt + Deepgram agent settings
-├── http_routes.py       # HTTP routes (TwiML, orders, barista UI, SSE)
-├── ws_bridge.py         # WebSocket bridge: Twilio <-> Deepgram
-├── agent_client.py      # Agent connection + settings injection
-├── agent_functions.py   # Tool definitions + wrappers
-├── business_logic.py    # Menu, cart, checkout, order mgmt
-├── orders_store.py      # JSON-backed store (thread-safe)
-├── events.py            # Pub/sub for dashboards
-├── audio.py             # Resampling utils for Twilio ↔ Deepgram
-├── send_sms.py          # Twilio SMS for order received + ready
-└── orders.json          # Persistent store (reset each startup)
+├── app_factory.py       # Application factory with startup/shutdown hooks
+├── settings.py          # Centralized configuration, prompts, Deepgram agent setup
+├── http_routes.py       # HTTP routes: TwiML, orders dashboard, barista console, SSE events
+├── ws_bridge.py         # WebSocket bridge: Twilio <-> Deepgram audio + events
+├── agent_client.py      # Deepgram Agent client + settings injection
+├── agent_functions.py   # Function (tool) definitions with wrappers for state + persistence
+├── business_logic.py    # Core menu, cart handling, checkout, and order management
+├── orders_store.py      # Thread-safe JSON-backed order store
+├── events.py            # Lightweight pub/sub for live dashboards
+├── audio.py             # Audio resampling utilities (Twilio ↔ Deepgram formats)
+├── send_sms.py          # Twilio SMS: order received & order ready notifications
+└── orders.json          # Persistent order log (auto-reset at startup)
 
-Containerfile            # Podman/Dockerfile for builds
-.dockerignore            # Excludes secrets/junk
-.env                     # Local config (not checked in!)
+Containerfile            # Podman/Docker build recipe
+.dockerignore            # Excludes secrets and build artifacts
+.env                     # Local runtime config (not committed, see sample.env.txt)
 requirements.txt         # Python dependencies
-README.md                # Project docs
+README.md                # Documentation and usage guide
 ```
+
 
 ---
 
