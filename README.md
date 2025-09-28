@@ -120,25 +120,30 @@ podman run -d --name boba-voice \
 ## 📝 Sample `.env`
 
 ```bash
-# --- Deepgram ---
-DEEPGRAM_API_KEY=your_deepgram_api_key
+# --- Twilio Environment Variables ---
+DEEPGRAM_API_KEY=**********
 
-# --- Voice Agent Host (used for Twilio webhook & WSS) ---
-VOICE_HOST=your-public-domain.ngrok-free.dev
-WS_SCHEME=wss
 
-# --- Twilio SMS credentials ---
-MSG_TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxx
-MSG_TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxx
-MSG_TWILIO_FROM_E164=+10000000000
+TWILIO_ACCOUNT_SID=**********
+TWILIO_AUTH_TOKEN=**********
+TWILIO_FROM_E164=**********
 
-# Optional test recipient
-TWILIO_TO_E164=+19999999999
+TWILIO_TO_E164=**********
 
 # --- Agent config ---
 AGENT_LANGUAGE=en
 AGENT_TTS_MODEL=aura-2-odysseus-en
 AGENT_STT_MODEL=nova-3
+
+
+# --- Twilio SMS credentials (messaging) ---
+MSG_TWILIO_ACCOUNT_SID=**********
+MSG_TWILIO_AUTH_TOKEN=**********
+MSG_TWILIO_FROM_E164=**********
+
+# --- Twilio Voice Agent (Realtime) ---
+VOICE_HOST=multifibered-glossarially-martine.ngrok-free.dev
+WS_SCHEME=wss
 ```
 
 ---
