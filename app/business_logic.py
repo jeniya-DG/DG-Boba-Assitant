@@ -1,11 +1,12 @@
-# app/business_logic.py
+# business_logic.py
 import re, time, random
 
 # --- Menu & simple pricing ---
+# Note: "matcha stencil on top" is the canonical add-on name used in items.
 MENU = {
     "flavors": ["taro milk tea", "black milk tea"],
     "toppings": ["boba", "egg pudding", "crystal agar boba", "vanilla cream"],
-    "addons": ["matcha stencil"],
+    "addons": ["matcha stencil on top"],
 }
 PRICES = {
     "drink": 5.50,
@@ -32,6 +33,7 @@ def _ensure_list(x):
 
 # Alias maps to tolerate natural phrasing
 ADDON_ALIASES = {
+    # Canonical key is "matcha stencil on top"
     "matcha stencil on top": {
         "matcha stencil", "matcha stencil on top", "matcha",
         "matcha art", "matcha design", "stencil", "matcha stencil top"
@@ -41,7 +43,7 @@ TOPPING_ALIASES = {
     "boba": {"boba", "tapioca", "tapioca pearls"},
     "egg pudding": {"egg pudding", "pudding"},
     "crystal agar boba": {"crystal agar", "agar", "crystal agar boba"},
-    "vanilla cream": {"vanilla cream", "cream", "vanilla foam", "vanilla cold foam"},
+    "vanilla cream": {"vanilla cream", "cream", "vanilla foam", "vanilla cold foam", "foam"},
 }
 
 def _match_with_aliases(value_norm: str, canonical_list: list[str], aliases: dict[str, set[str]]):
@@ -69,7 +71,7 @@ def menu_summary():
         "summary": (
             "We have Taro Milk Tea and Black Milk Tea. "
             "Toppings: boba, egg pudding, crystal agar boba, vanilla cream. "
-            "Optional add-on: matcha stencil on top."
+            "Optional add-on: matcha stencil on top (requires vanilla cream foam)."
         ),
         "flavors": MENU["flavors"],
         "toppings": MENU["toppings"],
@@ -77,6 +79,10 @@ def menu_summary():
     }
 
 def add_to_cart(flavor: str, toppings=None, sweetness: str | None = None, ice: str | None = None, addons=None):
+    """
+    NOTE: In the staged flow, this is called by the agent *only when confirming* the pending drink,
+    not for every intermediate step.
+    """
     if len(CART) >= MAX_DRINKS:
         return {"ok": False, "error": f"Max {MAX_DRINKS} drinks per order."}
 
@@ -105,11 +111,19 @@ def add_to_cart(flavor: str, toppings=None, sweetness: str | None = None, ice: s
             return {"ok": False, "error": f"Add-on '{a}' not available."}
         adds_out.append(m)
 
+    # Business rule: matcha stencil requires vanilla cream (foam)
+    if "matcha stencil on top" in adds_out and "vanilla cream" not in tops_out:
+        return {
+            "ok": False,
+            "error": "Matcha stencil is only available with foam. Please add Vanilla Cream topping.",
+            "requires": {"topping": "vanilla cream"},
+        }
+
     item = {
         "flavor": f,
         "toppings": tops_out,
-        "sweetness": sweetness or "50%",
-        "ice": ice or "regular ice",
+        "sweetness": (sweetness or "50%"),
+        "ice": (ice or "regular ice"),
         "addons": adds_out,
     }
     item["price"] = _price_item(item)
@@ -139,22 +153,16 @@ def set_sweetness_ice(index: int | None = None, sweetness: str | None = None, ic
 
 # --- Phone / orders ---
 PHONE_RE = re.compile(r'\+?\d[\d\-\s]{7,}\d')
-
 def normalize_phone(p: str | None) -> str | None:
-    """Return E.164-like number if possible, otherwise None."""
-    if not p:
-        return None
-    raw = p.strip()
-    # Preserve plus if present; otherwise extract digits and add +1 for US 10-digit.
-    if raw.startswith("+"):
-        digits = re.sub(r"[^0-9+]", "", raw)
-        return digits if len(digits) >= 8 else None
-    digits = re.sub(r"\D", "", raw)
-    if len(digits) == 10:         # US local
+    if not p: return None
+    digits = re.sub(r"\D", "", p)
+    if len(digits) == 10:  # US
         return "+1" + digits
-    if len(digits) == 11 and digits.startswith("1"):
+    if digits.startswith("1") and len(digits) == 11:
         return "+" + digits
-    return ("+" + digits) if digits else None
+    if p.startswith("+"):
+        return p
+    return "+" + digits if digits else None
 
 def random_order_no() -> str:
     n = random.randint(0, 9999)

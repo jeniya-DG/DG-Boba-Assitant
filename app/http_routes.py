@@ -1,40 +1,34 @@
-# app/http_routes.py
-
+# http_routes.py
+import os
 import json as _json
 import asyncio
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response, JSONResponse, HTMLResponse, StreamingResponse
 
-from .settings import VOICE_HOST, WS_SCHEME
 from .orders_store import (
     list_recent_orders,
     list_in_progress_orders,
     get_order_phone,
     set_order_status,
     add_order,
+    get_order,  # full order lookup
 )
 from .events import subscribe, unsubscribe, publish
 from .business_logic import add_to_cart, checkout_order
-from .send_sms import send_ready_sms  
+from .send_sms import send_ready_sms
 
 http_router = APIRouter()
 
 @http_router.post("/voice")
-def voice_twiml(request: Request):
-    # Prefer VOICE_HOST from .env; otherwise use the host that Twilio hit for /voice.
-    host = VOICE_HOST or request.headers.get("host")
-    if not host:
-        # Worst case fallback: try request.url.hostname (shouldn’t happen with Twilio)
-        host = request.url.hostname or "localhost:8000"
-
-    # Build WSS stream URL for Twilio -> your server
-    stream_url = f"{WS_SCHEME}://{host}/twilio"
-
+def voice_twiml():
+    # Read public host from env; fallback for local testing
+    host = os.getenv("VOICE_HOST", "localhost:8000")
+    scheme = "wss" if not host.startswith("localhost") else "ws"
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>Connecting you to the Deepgram BobaRista.</Say>
+  <Say>Connecting you to the Deepgram Boba Rista.</Say>
   <Connect>
-    <Stream url="{stream_url}" />
+    <Stream url="{scheme}://{host}/twilio" />
   </Connect>
 </Response>"""
     return Response(content=twiml, media_type="text/xml")
@@ -115,7 +109,7 @@ ORDERS_TV_HTML = """<!doctype html>
 def orders_tv():
     return HTMLResponse(ORDERS_TV_HTML)
 
-# --- Barista console (mark done -> SMS ready) ---
+# --- Barista console (show details + mark done -> SMS ready) ---
 BARISTA_HTML = """<!doctype html>
 <html>
 <head>
@@ -126,10 +120,13 @@ BARISTA_HTML = """<!doctype html>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:24px; }
     h1 { margin: 0 0 12px; }
     table { width: 100%; border-collapse: collapse; }
-    th, td { border-bottom: 1px solid #ddd; padding: 10px; text-align: left; }
+    th, td { border-bottom: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; }
     tr:hover { background: rgba(0,0,0,0.04); }
     button { padding: 6px 12px; border-radius: 8px; border: 1px solid #999; cursor: pointer; }
     .muted { color:#777; font-size: 12px; }
+    .detail-item { margin: 0 0 6px; line-height: 1.2; }
+    .detail-item small { color:#777; }
+    .nowrap { white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -137,12 +134,29 @@ BARISTA_HTML = """<!doctype html>
   <p class="muted">Mark orders as done to text the customer that it’s ready for pickup.</p>
 
   <table id="tbl">
-    <thead><tr><th>Order #</th><th>Phone</th><th>Status</th><th>Action</th></tr></thead>
+    <thead>
+      <tr>
+        <th class="nowrap">Order #</th>
+        <th>Phone</th>
+        <th>Details</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
     <tbody></tbody>
   </table>
 
   <script>
     const tbody = document.querySelector('#tbl tbody');
+
+    function fmtDetails(order) {
+      if (!order || !Array.isArray(order.items) || order.items.length === 0) return '—';
+      return order.items.map((it) => {
+        const flavor = it.flavor || 'unknown';
+        const toppings = (it.toppings && it.toppings.length) ? it.toppings.join(', ') : 'no toppings';
+        return `<div class="detail-item"><strong>${flavor}</strong><br/><small>${toppings}</small></div>`;
+      }).join('');
+    }
 
     async function load() {
       const res = await fetch('/orders/in_progress.json');
@@ -151,16 +165,27 @@ BARISTA_HTML = """<!doctype html>
       for (const o of list) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><strong>${o.order_number}</strong></td>
+          <td class="nowrap"><strong>${o.order_number}</strong></td>
           <td data-phone>-</td>
+          <td data-details class="muted">Loading…</td>
           <td>${o.status || ''}</td>
           <td><button data-done="${o.order_number}">Done</button></td>
         `;
         tbody.appendChild(tr);
 
-        fetch('/api/orders/phone/' + o.order_number).then(r => r.json()).then(d => {
-          tr.querySelector('[data-phone]').textContent = d.phone || '—';
-        });
+        // Fill phone
+        fetch('/api/orders/phone/' + o.order_number)
+          .then(r => r.json())
+          .then(d => { tr.querySelector('[data-phone]').textContent = d.phone || '—'; })
+          .catch(() => { tr.querySelector('[data-phone]').textContent = '—'; });
+
+        // Fill details (flavor + toppings)
+        fetch('/api/orders/' + o.order_number)
+          .then(r => r.ok ? r.json() : null)
+          .then(order => {
+            tr.querySelector('[data-details]').innerHTML = order ? fmtDetails(order) : '—';
+          })
+          .catch(() => { tr.querySelector('[data-details]').textContent = '—'; });
       }
     }
 
@@ -220,6 +245,14 @@ def api_get_phone(order_no: str):
     phone = get_order_phone(order_no)
     return {"order_number": order_no, "phone": phone}
 
+# return full order (includes items with flavor/toppings/etc.)
+@http_router.get("/api/orders/{order_no}")
+def api_get_order(order_no: str):
+    o = get_order(order_no)
+    if not o:
+        raise HTTPException(404, "Order not found")
+    return o
+
 @http_router.post("/api/orders/{order_no}/done")
 def api_mark_done(order_no: str):
     ok = set_order_status(order_no, "ready")
@@ -241,8 +274,9 @@ def api_seed(n: int = Query(2, ge=1, le=10)):
     created = []
     for _ in range(n):
         add_to_cart(flavor="taro milk tea", toppings=["boba"], addons=["matcha stencil on top"])
-        res = checkout_order(name=None, phone="+16145550123")
+        res = checkout_order(name=None, phone="+16146205644")
         if res.get("ok"):
+            # persist and publish so dashboards update immediately
             add_order({
                 "order_number": res["order_number"],
                 "phone": res.get("phone"),
