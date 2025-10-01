@@ -1,23 +1,19 @@
 # business_logic.py
 import re, time, random
 
-# --- Menu & simple pricing ---
-# Note: "matcha stencil on top" is the canonical add-on name used in items.
+# --- Menu (no pricing, no sizes - one standard size only) ---
 MENU = {
     "flavors": ["taro milk tea", "black milk tea"],
     "toppings": ["boba", "egg pudding", "crystal agar boba", "vanilla cream"],
     "addons": ["matcha stencil on top"],
 }
-PRICES = {
-    "drink": 5.50,
-    "topping": 0.75,
-    "addon": 0.50,
-}
-MAX_DRINKS = 10
+MAX_DRINKS = 5
+MAX_ORDERS_PER_PHONE = 5  # Maximum active drinks total per phone number
 
 # In-memory stores
 CART = []
 ORDERS = {}
+PENDING_ORDERS = {}  # Orders that have number but not yet finalized
 
 # ---- Helpers ----
 def _normalize(s: str | None) -> str:
@@ -33,7 +29,6 @@ def _ensure_list(x):
 
 # Alias maps to tolerate natural phrasing
 ADDON_ALIASES = {
-    # Canonical key is "matcha stencil on top"
     "matcha stencil on top": {
         "matcha stencil", "matcha stencil on top", "matcha",
         "matcha art", "matcha design", "stencil", "matcha stencil top"
@@ -60,12 +55,6 @@ def _match_with_aliases(value_norm: str, canonical_list: list[str], aliases: dic
             return c
     return None
 
-def _price_item(item):
-    toppings = item.get("toppings", []) or []
-    addons = item.get("addons", []) or []
-    total = PRICES["drink"] + len(toppings) * PRICES["topping"] + len(addons) * PRICES["addon"]
-    return round(total, 2)
-
 def menu_summary():
     return {
         "summary": (
@@ -79,10 +68,7 @@ def menu_summary():
     }
 
 def add_to_cart(flavor: str, toppings=None, sweetness: str | None = None, ice: str | None = None, addons=None):
-    """
-    NOTE: In the staged flow, this is called by the agent *only when confirming* the pending drink,
-    not for every intermediate step.
-    """
+    """Add a drink to cart (no pricing, no size - standard size only)."""
     if len(CART) >= MAX_DRINKS:
         return {"ok": False, "error": f"Max {MAX_DRINKS} drinks per order."}
 
@@ -126,13 +112,11 @@ def add_to_cart(flavor: str, toppings=None, sweetness: str | None = None, ice: s
         "ice": (ice or "regular ice"),
         "addons": adds_out,
     }
-    item["price"] = _price_item(item)
     CART.append(item)
     return {
         "ok": True,
         "cart_count": len(CART),
         "item": item,
-        "cart_total": round(sum(_price_item(i) for i in CART), 2)
     }
 
 def remove_from_cart(index: int):
@@ -140,6 +124,62 @@ def remove_from_cart(index: int):
         return {"ok": False, "error": "Index out of range.", "cart_count": len(CART)}
     removed = CART.pop(index)
     return {"ok": True, "removed": removed, "cart_count": len(CART)}
+
+def modify_cart_item(index: int, flavor: str | None = None, toppings=None, sweetness: str | None = None, ice: str | None = None, addons=None):
+    """Modify an existing item in the cart by index."""
+    if not (0 <= index < len(CART)):
+        return {"ok": False, "error": "Index out of range.", "cart_count": len(CART)}
+    
+    item = CART[index]
+    
+    # Update flavor if provided
+    if flavor:
+        f = _normalize(flavor)
+        if f not in MENU["flavors"]:
+            return {"ok": False, "error": f"'{flavor}' is not on the menu."}
+        item["flavor"] = f
+    
+    # Update toppings if provided
+    if toppings is not None:
+        tops_in = [_normalize(t) for t in _ensure_list(toppings)]
+        tops_out = []
+        for t in tops_in:
+            if not t:
+                continue
+            m = _match_with_aliases(t, MENU["toppings"], TOPPING_ALIASES)
+            if not m:
+                return {"ok": False, "error": f"Topping '{t}' not available."}
+            tops_out.append(m)
+        item["toppings"] = tops_out
+    
+    # Update addons if provided
+    if addons is not None:
+        adds_in = [_normalize(a) for a in _ensure_list(addons)]
+        adds_out = []
+        for a in adds_in:
+            if not a:
+                continue
+            m = _match_with_aliases(a, MENU["addons"], ADDON_ALIASES)
+            if not m:
+                return {"ok": False, "error": f"Add-on '{a}' not available."}
+            adds_out.append(m)
+        item["addons"] = adds_out
+    
+    # Business rule: matcha stencil requires vanilla cream (foam)
+    if "matcha stencil on top" in item.get("addons", []) and "vanilla cream" not in item.get("toppings", []):
+        return {
+            "ok": False,
+            "error": "Matcha stencil is only available with foam. Please add Vanilla Cream topping.",
+            "requires": {"topping": "vanilla cream"},
+        }
+    
+    # Update sweetness and ice if provided
+    if sweetness:
+        item["sweetness"] = sweetness
+    if ice:
+        item["ice"] = ice
+    
+    return {"ok": True, "item": item, "cart_count": len(CART)}
 
 def set_sweetness_ice(index: int | None = None, sweetness: str | None = None, ice: str | None = None):
     if not CART:
@@ -150,6 +190,14 @@ def set_sweetness_ice(index: int | None = None, sweetness: str | None = None, ic
     if sweetness: CART[i]["sweetness"] = sweetness
     if ice: CART[i]["ice"] = ice
     return {"ok": True, "item": CART[i]}
+
+def get_cart():
+    """Return current cart contents (no pricing)."""
+    return {
+        "ok": True,
+        "items": CART.copy(),
+        "count": len(CART),
+    }
 
 # --- Phone / orders ---
 PHONE_RE = re.compile(r'\+?\d[\d\-\s]{7,}\d')
@@ -168,35 +216,89 @@ def random_order_no() -> str:
     n = random.randint(0, 9999)
     return f"{n:04d}"
 
-def checkout_order(name: str | None = None, phone: str | None = None):
+def checkout_order(phone: str | None = None):
+    """
+    Generate order number and create pending order (no pricing, no names, no sizes).
+    Does NOT finalize - order stays in PENDING_ORDERS until finalize_order() is called.
+    Checks 5-active-drink limit here (early validation).
+    """
     if not CART:
         return {"ok": False, "error": "Cart is empty."}
+    
     phone_norm = normalize_phone(phone) if phone else None
+    
+    # Check 5-drink limit per phone number (early validation)
+    if phone_norm:
+        from .orders_store import count_active_drinks_for_phone
+        active_drinks = count_active_drinks_for_phone(phone_norm)
+        current_cart_size = len(CART)
+        total_drinks = active_drinks + current_cart_size
+        
+        if total_drinks > MAX_ORDERS_PER_PHONE:
+            return {
+                "ok": False, 
+                "error": f"You currently have {active_drinks} active drink(s). Adding {current_cart_size} more would exceed the limit of {MAX_ORDERS_PER_PHONE} active drinks per phone number. Please wait for your current orders to be ready.",
+                "limit_reached": True,
+                "active_drinks": active_drinks,
+                "cart_drinks": current_cart_size,
+                "max_allowed": MAX_ORDERS_PER_PHONE
+            }
+    
     order_no = random_order_no()
-    total = round(sum(_price_item(i) for i in CART), 2)
+    
+    # Create pending order (not finalized yet, no pricing, no name, no size)
     order = {
         "order_number": order_no,
         "items": CART.copy(),
-        "name": name,
         "phone": phone_norm,
-        "total": total,
         "status": "received",
         "created_at": int(time.time()),
+        "committed": False,
     }
-    ORDERS[order_no] = order
-    CART.clear()
+    
+    PENDING_ORDERS[order_no] = order
+    # Note: Do NOT clear CART yet - customer can still modify
+    
     return {"ok": True, **order}
+
+def finalize_order(order_number: str):
+    """
+    Finalize a pending order - move from PENDING_ORDERS to ORDERS and clear CART.
+    Returns the finalized order data ready for persistence.
+    """
+    if order_number not in PENDING_ORDERS:
+        return {"ok": False, "error": "Pending order not found."}
+    
+    order = PENDING_ORDERS.pop(order_number)
+    
+    # Update with current cart contents (in case customer modified after checkout)
+    if CART:
+        order["items"] = CART.copy()
+    
+    order["committed"] = True
+    ORDERS[order_number] = order
+    CART.clear()
+    
+    return {"ok": True, **order}
+
+def discard_pending_order(order_number: str):
+    """Discard a pending order without finalizing."""
+    if order_number in PENDING_ORDERS:
+        PENDING_ORDERS.pop(order_number)
+        CART.clear()
+        return {"ok": True, "discarded": True}
+    return {"ok": False, "error": "Pending order not found."}
 
 def order_status(phone: str | None = None, order_number: str | None = None):
     if order_number and order_number in ORDERS:
         o = ORDERS[order_number]
-        return {"found": True, "order_number": order_number, "status": o["status"], "total": o["total"]}
+        return {"found": True, "order_number": order_number, "status": o["status"]}
     phone_norm = normalize_phone(phone) if phone else None
     if phone_norm:
         matches = [(k, v) for k, v in ORDERS.items() if v.get("phone") == phone_norm]
         if matches:
             k, v = sorted(matches, key=lambda kv: kv[1]["created_at"], reverse=True)[0]
-            return {"found": True, "order_number": k, "status": v["status"], "total": v["total"]}
+            return {"found": True, "order_number": k, "status": v["status"]}
     return {"found": False}
 
 def extract_phone_and_order(text: str | None):

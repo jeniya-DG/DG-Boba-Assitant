@@ -1,13 +1,11 @@
 # agent_functions.py
 from typing import Any, Dict, Optional
 from . import business_logic as bl
-from .orders_store import add_order
-from .events import publish
 
 # --- Session state for the call ---
 session_state: Dict[str, Any] = {
     "phone_number": None,
-    "order_number": None,   # set after checkout
+    "order_number": None,   # set after checkout (but not finalized)
     "phone_confirmed": False,  # track if phone was explicitly confirmed
     "received_sms_sent": False,  # track if SMS was already sent
     # staged-but-not-confirmed drink
@@ -89,30 +87,38 @@ def _confirm_pending_to_cart():
         session_state["pending_item"] = None
     return res
 
-def _wrap_checkout_order(name: str | None = None, phone: str | None = None):
-    """Auto-commit any staged item, then checkout. Persist and publish events."""
+def _wrap_checkout_order(phone: str | None = None):
+    """
+    Auto-commit any staged item, generate order number, but DON'T finalize yet.
+    Order will be finalized on hangup.
+    IMPORTANT: Only generate order number ONCE per call session.
+    """
+    # If order number already exists, don't call checkout again - just return existing
+    if session_state.get("order_number"):
+        return {
+            "ok": True,
+            "order_number": session_state["order_number"],
+            "already_created": True,
+            "message": "Order number already generated for this call"
+        }
+    
+    # Auto-commit any pending item
     if session_state.get("pending_item"):
         _ = _confirm_pending_to_cart()
 
-    result = bl.checkout_order(name=name, phone=phone)
+    result = bl.checkout_order(phone=phone)
+    
     if isinstance(result, dict) and result.get("ok"):
-        # Persist orders.json
-        add_order({
-            "order_number": result["order_number"],
-            "phone": result.get("phone"),
-            "items": result.get("items") or [],
-            "total": result.get("total", 0.0),
-            "status": result.get("status", "received"),
-            "created_at": result.get("created_at"),
-        })
-        # Publish to dashboards
-        publish({"type": "order_created", "order_number": result["order_number"], "status": "received"})
-        # Cache session markers and mark phone as confirmed
+        # Store order number in session but DON'T persist yet
         if result.get("phone"):
             session_state["phone_number"] = result["phone"]
             session_state["phone_confirmed"] = True
         if result.get("order_number"):
             session_state["order_number"] = result["order_number"]
+        
+        # NOTE: We do NOT call add_order() or publish() here
+        # That happens on hangup in ws_bridge.py
+    
     return result
 
 def _save_phone_number(phone: str):
@@ -125,6 +131,10 @@ def _order_is_placed():
     """Let the agent know if an order has already been placed in this call session."""
     placed = bool(session_state.get("order_number"))
     return {"placed": placed, "order_number": session_state.get("order_number")}
+
+def _get_cart():
+    """Return current cart contents for the agent to read back."""
+    return bl.get_cart()
 
 # ---------- Tool definitions ----------
 FUNCTION_DEFS: list[Dict[str, Any]] = [
@@ -175,6 +185,11 @@ FUNCTION_DEFS: list[Dict[str, Any]] = [
         "description": "Discard the staged drink (if caller cancels or restarts).",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "get_cart",
+        "description": "Get current cart contents to read back to customer.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
 
     # Call/session helpers
     {
@@ -183,13 +198,29 @@ FUNCTION_DEFS: list[Dict[str, Any]] = [
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
 
-    # Existing helpers
+    # Cart modification
     {
         "name": "remove_from_cart",
         "description": "Remove a drink by index (0-based).",
         "parameters": {
             "type": "object",
             "properties": {"index": {"type": "integer", "minimum": 0}},
+            "required": ["index"],
+        },
+    },
+    {
+        "name": "modify_cart_item",
+        "description": "Modify an existing drink in the cart by index.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "index": {"type": "integer", "minimum": 0},
+                "flavor": {"type": "string"},
+                "toppings": {"type": "array", "items": {"type": "string"}},
+                "sweetness": {"type": "string"},
+                "ice": {"type": "string"},
+                "addons": {"type": "array", "items": {"type": "string"}},
+            },
             "required": ["index"],
         },
     },
@@ -208,10 +239,10 @@ FUNCTION_DEFS: list[Dict[str, Any]] = [
     },
     {
         "name": "checkout_order",
-        "description": "Place the order and return order number + total. If a drink is staged, it will be added first.",
+        "description": "Generate order number but don't finalize yet. Order is finalized on hangup. If a drink is staged, it will be added first. Can only be called ONCE per call - subsequent calls return existing order number.",
         "parameters": {
             "type": "object",
-            "properties": {"name": {"type": "string"}, "phone": {"type": "string"}},
+            "properties": {"phone": {"type": "string"}},
             "required": [],
         },
     },
@@ -253,13 +284,17 @@ FUNCTION_MAP: dict[str, Any] = {
     "update_pending_item": _update_pending_item,
     "confirm_pending_to_cart": _confirm_pending_to_cart,
     "clear_pending_item": _clear_pending_item,
+    "get_cart": _get_cart,
 
     # Session
     "order_is_placed": _order_is_placed,
 
-    # Existing
+    # Cart modification
     "remove_from_cart": bl.remove_from_cart,
+    "modify_cart_item": bl.modify_cart_item,
     "set_sweetness_ice": bl.set_sweetness_ice,
+    
+    # Checkout
     "checkout_order": _wrap_checkout_order,
     "order_status": bl.order_status,
     "extract_phone_and_order": bl.extract_phone_and_order,

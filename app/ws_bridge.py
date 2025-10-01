@@ -6,7 +6,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from .agent_client import connect_agent, send_agent_settings
 from .agent_functions import FUNCTION_MAP, session_state
-from .business_logic import checkout_order
+from .business_logic import finalize_order, discard_pending_order
 from .send_sms import send_received_sms
 from .audio import (
     ulaw8k_to_lin16_48k,
@@ -33,52 +33,74 @@ def register_ws_routes(app: FastAPI):
         twilio_to_agent_state = None
         agent_to_twilio_state = None
 
-        async def maybe_send_sms_fallback():
+        async def finalize_and_send_sms():
             """
-            Fallback on stop/disconnect:
-            - Only finalize/send if phone was explicitly confirmed AND not already sent.
+            Finalize order on hangup:
+            - Only finalize if phone was explicitly confirmed AND order number exists
+            - Finalize the order (persist to orders.json)
+            - Send SMS confirmation
+            - Publish event to dashboards
             """
             if session_state.get("received_sms_sent"):
+                print("ℹ️ SMS already sent, skipping finalization")
                 return
+            
             if not session_state.get("phone_confirmed"):
-                print("ℹ️ Skipping finalize: phone not confirmed.")
+                print("ℹ️ Phone not confirmed, discarding order")
+                # Discard any pending order
+                order_no = session_state.get("order_number")
+                if order_no:
+                    discard_pending_order(order_no)
                 return
 
             phone = session_state.get("phone_number")
-            order = session_state.get("order_number")
-            print(f"📱 Final phone: {phone}")
-            print(f"🧾 Final order: {order}")
+            order_no = session_state.get("order_number")
+            
+            if not phone or not order_no:
+                print("ℹ️ Missing phone or order number, cannot finalize")
+                return
 
-            # finalize on hangup if needed (only if confirmed)
-            if phone and not order:
-                try:
-                    res = checkout_order(name=None, phone=phone)
-                    if isinstance(res, dict) and res.get("ok"):
-                        order = res.get("order_number")
-                        session_state["order_number"] = order
-                        add_order({
-                            "order_number": res["order_number"],
-                            "phone": res.get("phone"),
-                            "items": res.get("items") or [],
-                            "total": res.get("total", 0.0),
-                            "status": res.get("status", "received"),
-                            "created_at": res.get("created_at"),
-                        })
-                        publish({"type": "order_created", "order_number": res["order_number"], "status": "received"})
-                        print(f"✅ Server-side checkout finalized. Order: {order}")
-                    else:
-                        print("ℹ️ No items to finalize; skipping SMS.")
-                        return
-                except Exception as e:
-                    print(f"❌ Server-side checkout failed: {e}")
+            print(f"📱 Finalizing order on hangup...")
+            print(f"   Phone: {phone}")
+            print(f"   Order: {order_no}")
+
+            try:
+                # Finalize the order (commit from pending)
+                result = finalize_order(order_no)
+                
+                if not result.get("ok"):
+                    print(f"❌ Failed to finalize order: {result.get('error')}")
                     return
-
-            if phone and order and not session_state.get("received_sms_sent"):
+                
+                # Persist to orders.json
+                add_order({
+                    "order_number": result["order_number"],
+                    "phone": result.get("phone"),
+                    "items": result.get("items") or [],
+                    "total": result.get("total", 0.0),
+                    "status": result.get("status", "received"),
+                    "created_at": result.get("created_at"),
+                })
+                
+                # Publish to dashboards
+                publish({
+                    "type": "order_created",
+                    "order_number": result["order_number"],
+                    "status": "received"
+                })
+                
+                print(f"✅ Order finalized: {order_no}")
+                
+                # Send confirmation SMS
                 try:
-                    send_received_sms(order_no=order, to_phone_no=phone)
+                    send_received_sms(order_no=order_no, to_phone_no=phone)
                     session_state["received_sms_sent"] = True
+                    print(f"✅ Confirmation SMS sent to {phone}")
                 except Exception as e:
-                    print(f"❌ Error sending confirmation SMS (fallback): {e}")
+                    print(f"❌ Error sending confirmation SMS: {e}")
+                    
+            except Exception as e:
+                print(f"❌ Error during finalization: {e}")
 
         async def agent_to_twilio_task():
             nonlocal agent_to_twilio_state
@@ -154,10 +176,12 @@ def register_ws_routes(app: FastAPI):
 
                 if etype == "start":
                     stream_sid = evt["start"]["streamSid"]
+                    # Reset session state for new call
                     session_state["phone_number"] = None
                     session_state["order_number"] = None
                     session_state["phone_confirmed"] = False
                     session_state["received_sms_sent"] = False
+                    session_state["pending_item"] = None
                     twilio_to_agent_state = None
                     agent_to_twilio_state = None
                     print(f"▶️ Stream started: {stream_sid}")
@@ -170,7 +194,7 @@ def register_ws_routes(app: FastAPI):
 
                 elif etype == "stop":
                     print("⏹️ Stream stopped")
-                    await maybe_send_sms_fallback()
+                    await finalize_and_send_sms()
                     break
 
                 else:
@@ -178,12 +202,12 @@ def register_ws_routes(app: FastAPI):
 
         except WebSocketDisconnect:
             print("⚠️ Twilio WebSocketDisconnect")
-            await maybe_send_sms_fallback()
+            await finalize_and_send_sms()
         finally:
             try: await agent.close()
             except Exception: pass
             forward_task.cancel()
             try: await ws.close()
             except Exception: pass
-            await maybe_send_sms_fallback()
+            await finalize_and_send_sms()
             print("🔌 Twilio WebSocket closed")

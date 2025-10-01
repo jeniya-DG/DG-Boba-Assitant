@@ -82,5 +82,28 @@ def latest_order_for_phone(phone_e164: str) -> dict | None:
         return None
     return sorted(matches, key=lambda o: o.get("created_at") or 0, reverse=True)[0]
 
+def count_active_orders_for_phone(phone_e164: str) -> int:
+    """Count orders for a phone that are NOT ready (active orders only)."""
+    if not phone_e164:
+        return 0
+    data = _read()
+    count = 0
+    for o in data["orders"]:
+        if o.get("phone") == phone_e164 and o.get("status") != "ready":
+            count += 1
+    return count
+
+def count_active_drinks_for_phone(phone_e164: str) -> int:
+    """Count total number of drinks across all active orders (status != ready) for a phone."""
+    if not phone_e164:
+        return 0
+    data = _read()
+    total_drinks = 0
+    for o in data["orders"]:
+        if o.get("phone") == phone_e164 and o.get("status") != "ready":
+            items = o.get("items", [])
+            total_drinks += len(items)
+    return total_drinks
+
 def now_iso():
     return datetime.utcnow().isoformat()
