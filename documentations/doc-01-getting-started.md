@@ -2,8 +2,6 @@
 
 This guide walks you through setting up Deepgram BobaRista on your local machine using Podman and ngrok.
 
----
-
 ## Prerequisites
 
 Before you begin, make sure you have:
@@ -18,68 +16,36 @@ Before you begin, make sure you have:
 - **Twilio account** with A2P 10DLC approval 
 - **Deepgram API key** from https://console.deepgram.com
 
-
----
-
 ## Step 1: Clone the Repository
 
-```bash
 git clone <repository-url>
 cd deepgram-bobarista
-```
-
----
 
 ## Step 2: Configure Environment Variables
 
 Create your `.env` file from the template:
 
-```bash
-cp sample.env.txt .env
-```
-
 Edit `.env` with your credentials:
 
-```bash
 # Server (will be updated with ngrok URL)
 VOICE_HOST=localhost:8000
 
 # Deepgram API Key (from console.deepgram.com)
-DEEPGRAM_API_KEY=your_deepgram_api_key_here
+DEEPGRAM_API_KEY=xxx
 
-# Agent Models
 AGENT_LANGUAGE=en
-AGENT_TTS_MODEL=aura-2-odysseus-en
-AGENT_STT_MODEL=nova-3
-AGENT_THINK_MODEL=gemini-2.5-flash
 
 # Twilio Messaging (for SMS notifications)
-MSG_TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-MSG_TWILIO_AUTH_TOKEN=your_twilio_auth_token
-MSG_TWILIO_FROM_E164=+xxxxxx
-
-TWILIO_ACCOUNT_SID=*****
-TWILIO_AUTH_TOKEN=*****
-
-# Your Twilio phone number (the number customers will call)
-TWILIO_FROM_E164=*****
-
-# Test destination number (for making test calls)
-TWILIO_TO_E164=*****
-```
+xxx=xxx
+xxx=+xxxxxx
 
 **Note**: You'll update `VOICE_HOST` after starting ngrok in Step 4.
-
----
 
 ## Step 3: Start the Application
 
 ### Using Podman (Recommended)
 
-```bash
 # Start the container
-./podman-start.sh
-```
 
 This script will:
 1. Check if Podman VM is running (macOS)
@@ -89,7 +55,6 @@ This script will:
 
 ### Using Docker
 
-```bash
 # Build the image
 docker build -t boba-voice:local .
 
@@ -98,64 +63,41 @@ docker run -d --name boba-voice \
   -p 8000:8000 \
   --env-file .env \
   boba-voice:local
-```
 
 ### Verify It's Running
 
-```bash
 # Check container status
 podman ps
 # or
 docker ps
 
-# View logs
-podman logs -f boba-voice
-# or
 docker logs -f boba-voice
 
 # Test the server
 curl http://localhost:8000
-```
 
 You should see the landing page HTML.
-
----
 
 ## Step 4: Expose with ngrok
 
 In a new terminal, start ngrok:
 
-```bash
-ngrok http 8000
-```
-
 You'll see output like:
 
-```
 Forwarding  https://abc123.ngrok-free.app -> http://localhost:8000
-```
 
 **Copy the HTTPS URL** (e.g., `abc123.ngrok-free.app` - without `https://`)
-
----
 
 ## Step 5: Update Environment Variables
 
 Edit your `.env` file and update `VOICE_HOST`:
 
-```bash
 VOICE_HOST=abc123.ngrok-free.app
-```
 
 **Restart the container** for changes to take effect:
 
-```bash
 podman restart boba-voice
-# or
 docker restart boba-voice
-```
-
----
 
 ## Step 6: Configure Twilio
 
@@ -176,8 +118,6 @@ docker restart boba-voice
    - **HTTP Method**: `POST`
 5. Click **Save**
 
----
-
 ## Step 7: Test Your Setup
 
 ### Make a Test Call
@@ -190,16 +130,14 @@ docker restart boba-voice
 
 Try this conversation:
 
-```
 You: "I want a taro milk tea with boba"
 AI: "One taro milk tea with boba. Is that correct?"
 You: "Yes"
 AI: "Great! Would you like anything else?"
 You: "No, that's all"
 AI: "Can I please get your phone number for this order?"
-You: "123-123-1234"
+You: "xxx-xxx-xxxx"
 AI: "Thank you! Your order number is 5566. ..."
-```
 
 ### Check the Dashboards
 
@@ -211,16 +149,11 @@ Open in your browser:
 
 You should see your order appear in real-time!
 
----
-
 ## Common Local Dev Commands
 
-```bash
 # View live logs
-podman logs -f boba-voice
 
 # Stop the container
-./podman-stop.sh
 # or manually:
 podman stop boba-voice
 
@@ -228,15 +161,12 @@ podman stop boba-voice
 podman start boba-voice
 
 # Restart after .env changes
-podman restart boba-voice
 
 # Rebuild after code changes
-./podman-start.sh
 
 # Execute commands inside container
 podman exec -it boba-voice bash
 
-# Check container status
 podman ps -a
 
 # Remove container completely
@@ -244,25 +174,19 @@ podman rm -f boba-voice
 
 # Remove image
 podman rmi boba-voice:local
-```
-
----
 
 ## Troubleshooting Local Setup
 
 ### Issue: "Podman machine not running"
 
-```bash
 # Start the Podman VM (macOS)
 podman machine start
 
 # Check status
 podman machine list
-```
 
 ### Issue: "Port 8000 already in use"
 
-```bash
 # Find what's using port 8000
 lsof -i :8000
 
@@ -271,11 +195,9 @@ kill -9 <PID>
 
 # Or use a different port
 podman run -p 8001:8000 ...
-```
 
 ### Issue: "Container exits immediately"
 
-```bash
 # Check logs for errors
 podman logs boba-voice
 
@@ -283,7 +205,6 @@ podman logs boba-voice
 # - Missing DEEPGRAM_API_KEY in .env
 # - Invalid .env format
 # - Python dependencies failed to install
-```
 
 ### Issue: "ngrok URL keeps changing"
 
@@ -295,16 +216,13 @@ Free ngrok URLs change every time you restart. Solutions:
 
 ### Issue: "Twilio webhook not working"
 
-```bash
 # Check if ngrok is running
 curl https://your-ngrok-url.ngrok-free.app/voice
 
 # Check container logs
-podman logs -f boba-voice
 
 # Verify webhook URL in Twilio console
 # Must be: https://<ngrok-url>/voice (with HTTPS)
-```
 
 ### Issue: "No audio on call"
 
@@ -312,24 +230,18 @@ podman logs -f boba-voice
 - Check WebSocket connection in logs
 - Ensure `VOICE_HOST` matches ngrok URL exactly
 
----
-
 ## Development Workflow
 
 ### Making Code Changes
 
 1. **Edit your code** in the `app/` directory
 2. **Rebuild and restart**:
-   ```bash
-   ./podman-start.sh
-   ```
 3. **Test your changes** by calling the number
 
 ### Testing Without Phone Calls
 
 You can test HTTP endpoints directly:
 
-```bash
 # Test TwiML endpoint
 curl -X POST http://localhost:8000/voice
 
@@ -338,19 +250,14 @@ curl http://localhost:8000/orders.json
 
 # Create test orders
 curl -X POST "http://localhost:8000/api/seed?n=3"
-```
 
 ### Viewing Orders Data
 
-```bash
 # Read orders.json from container
 podman exec boba-voice cat /app/app/orders.json | jq
 
 # Or view in browser
 open http://localhost:8000/orders.json
-```
-
----
 
 ## Next Steps
 
@@ -359,27 +266,14 @@ open http://localhost:8000/orders.json
 - Need help? Check [Troubleshooting Guide](07-troubleshooting.md)
 - Want to contribute? Read [Development Guide](08-development.md)
 
----
-
 ## Quick Reference
 
 **Start Development Environment:**
-```bash
-./podman-start.sh
-ngrok http 8000
 # Update .env with ngrok URL
-podman restart boba-voice
-```
 
 **Test:**
-```bash
-curl http://localhost:8000
 open http://localhost:8000/orders
 # Call your Twilio number
-```
 
 **Stop:**
-```bash
-./podman-stop.sh
 # Press Ctrl+C in ngrok terminal
-```

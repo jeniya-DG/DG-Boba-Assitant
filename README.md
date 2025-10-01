@@ -20,8 +20,6 @@ Customers call a phone number, place their order naturally through voice convers
 - 🔄 **Real-time Updates** via Server-Sent Events (SSE)
 - 📦 **Containerized** with Podman/Docker, published to [quay.io](https://quay.io/repository/jeniya26/deepgram_bobarista)
 
----
-
 ## 🚀 Quick Start
 
 ### Option 1: Local Development (Podman + ngrok)
@@ -39,9 +37,7 @@ ngrok http 8000
 
 💡 Copy the ngrok HTTPS URL (e.g., `https://abc123.ngrok-free.app`) into `.env` as `VOICE_HOST`, then configure your Twilio Voice Webhook to:
 
-```
 https://<your-ngrok-url>/voice
-```
 
 ### Option 2: Production Deployment (AWS EC2)
 
@@ -58,11 +54,8 @@ See the **[Complete Deployment Tutorial](documentations/04-deployment.md)** for 
 - **SSL**: Let's Encrypt certificate with auto-renewal
 - **Reverse Proxy**: Nginx with WebSocket support
 
----
-
 ## 📂 Project Architecture
 
-```
 app/
 ├── main.py              # FastAPI entrypoint
 ├── app_factory.py       # Application factory with startup/shutdown hooks
@@ -93,9 +86,6 @@ podman-start.sh          # Local dev: build and run container
 podman-stop.sh           # Local dev: stop and cleanup  
 requirements.txt         # Python dependencies  
 sample.env.txt           # Environment variable template  
-```
-
----
 
 ## 📚 Documentation
 
@@ -110,44 +100,31 @@ sample.env.txt           # Environment variable template
 | [Troubleshooting](documentations/07-troubleshooting.md) | Common issues & solutions |
 | [Development](documentations/08-development.md) | Contributing & development workflow |
 
----
-
 ## 🎯 How It Works
 
-```
 Customer Dials 
         ↓
 Twilio receives call → POST /voice webhook
-        ↓
 WebSocket connection established
-        ↓
 ┌─────────────────────────────────────┐
 │  Twilio (µ-law 8kHz)                │
 │         ↕                           │
 │  Your Server (resampling)           │
-│         ↕                           │
 │  Deepgram Agent (Linear16 48kHz)    │
 │    • STT: nova-3                    │
 │    • Think: gemini-2.5-flash        │
 │    • TTS: aura-2-odysseus-en        │
 └─────────────────────────────────────┘
-        ↓
 AI calls functions: add_to_cart, checkout_order, etc.
-        ↓
 Order saved → SMS sent → Dashboard updated
-        ↓
 Barista marks ready → SMS sent
-```
 
 See [Architecture Documentation](documentations/05-architecture.md) for detailed flow diagrams.
-
----
 
 ## 📝 Environment Variables
 
 Create a `.env` file:
 
-```bash
 # Server
 VOICE_HOST=voice.boba-demo.deepgram.com
 
@@ -160,10 +137,9 @@ AGENT_STT_MODEL=nova-3
 AGENT_THINK_MODEL=gemini-2.5-flash
 
 # Twilio Messaging (SMS)
-MSG_TWILIO_ACCOUNT_SID=ACxxxxxx
-MSG_TWILIO_AUTH_TOKEN=your_token
-MSG_TWILIO_FROM_E164=+xxxxx
-
+xxx=ACxxxxxx
+xxx=your_token
+xxx=+xxxxx
 
 # Twilio Calling (SMS)
 TWILIO_ACCOUNT_SID=*****
@@ -174,15 +150,11 @@ TWILIO_FROM_E164=*****
 
 # Test destination number (for making test calls)
 TWILIO_TO_E164=*****
-```
 
 See `sample.env.txt` for complete template.
 
----
-
 ## 🧪 Quick Test
 
-```bash
 # 1. Call the number
 Call: +1 (xxx) xxx-xxxx
 
@@ -192,45 +164,32 @@ Say: "I want a taro milk tea with boba"
 # 3. Check dashboards
 Visit: https://voice.boba-demo.deepgram.com/orders
 Visit: https://voice.boba-demo.deepgram.com/barista
-```
-
----
 
 ## 🛠️ Local Development
 
-```bash
 # Start container
-./podman-start.sh
 
 # View logs
 podman logs -f boba-voice
 
 # Stop
 ./podman-stop.sh
-```
 
 See [Getting Started Guide](documentations/01-getting-started.md) for detailed instructions.
 
----
-
 ## 🚀 Production Deployment
 
-```bash
 # Quick deploy on EC2
 git clone <repo> /opt/bobarista
 cd /opt/bobarista
 python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp sample.env.txt .env
 # Edit .env with your credentials
 sudo systemctl enable bobarista
 sudo systemctl start bobarista
-```
 
 See [Deployment Guide](documentations/04-deployment.md) for complete setup including Nginx, SSL, and systemd.
-
----
 
 ## 📊 API Endpoints
 
@@ -245,8 +204,6 @@ See [Deployment Guide](documentations/04-deployment.md) for complete setup inclu
 
 See [API Reference](documentations/06-api-reference.md) for complete documentation.
 
----
-
 ## 🔧 Troubleshooting
 
 **Call ends immediately?**
@@ -259,5 +216,3 @@ See [API Reference](documentations/06-api-reference.md) for complete documentati
 
 See [Troubleshooting Guide](documentations/07-troubleshooting.md) for detailed solutions.
 
-
----

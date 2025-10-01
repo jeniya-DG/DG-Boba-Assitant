@@ -2,33 +2,22 @@
 
 Complete guide for configuring Twilio phone numbers, webhooks, and SMS for Deepgram BobaRista.
 
----
-
----
-
 ## Step 1: Get Account Credentials
 
 ### 1.1 Find Your Account SID and Auth Token
 
-1. Go to [Twilio Console](https://console.twilio.com)
 2. You'll see the dashboard with:
 
-```
 Account Info
-├── Account SID: ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+├── Account SID: xxx
 └── Auth Token: ********************************
-```
 
 3. **Click the eye icon** to reveal Auth Token
 4. **Copy both values** - you'll need them for `.env` file
 
 **Save these securely:**
-```
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=your_actual_auth_token_here
-```
-
----
+TWILIO_ACCOUNT_SID=xxx
+TWILIO_AUTH_TOKEN=xxx
 
 ## Step 2: Upgrade Account
 
@@ -53,8 +42,6 @@ TWILIO_AUTH_TOKEN=your_actual_auth_token_here
 - Remove "Twilio trial" message
 - Access to all features
 
----
-
 ## Step 3: Purchase Phone Number (Voice)
 
 ### 3.1 Navigate to Phone Numbers
@@ -65,7 +52,6 @@ TWILIO_AUTH_TOKEN=your_actual_auth_token_here
 ### 3.2 Search for Number
 
 **Search Criteria:**
-```
 Country: United States
 Capabilities: 
   ☑ Voice
@@ -73,7 +59,6 @@ Capabilities:
   ☐ MMS (optional)
 
 Number type: Local or Toll-free
-```
 
 **For production (recommended):**
 - Select **Toll-free** number
@@ -99,20 +84,16 @@ Number type: Local or Toll-free
 - Local: ~$1/month + $0.0085/minute
 - Toll-free: ~$2/month + $0.022/minute
 
----
-
 ## Step 4: Configure Voice Webhook
 
 ### 4.1 Navigate to Number Settings
 
-1. Go to **Phone Numbers** → **Manage** → **Active Numbers**
 2. Click on your purchased number (e.g., `+1 (xxx) xxx-xxxx`)
 
 ### 4.2 Configure Voice Settings
 
 Scroll down to **Voice Configuration** section:
 
-```
 A CALL COMES IN
 ├── Webhook: https://voice.boba-demo.deepgram.com/voice
 ├── HTTP: POST
@@ -120,7 +101,6 @@ A CALL COMES IN
 
 CALL STATUS CHANGES (optional)
 └── (can leave empty)
-```
 
 **Important:**
 - Use **HTTPS** (not HTTP)
@@ -131,8 +111,6 @@ CALL STATUS CHANGES (optional)
 ### 4.3 Save Configuration
 
 Click **Save configuration** at bottom of page.
-
----
 
 ## Step 5: Purchase Phone Number (SMS)
 
@@ -155,36 +133,22 @@ Having separate numbers is clearer for customers:
 
 1. Go to **Phone Numbers** → **Manage** → **Buy a number**
 2. **Search Criteria:**
-   ```
-   Country: United States
    Capabilities: ☑ SMS, ☑ MMS
    Number type: Local
-   ```
 3. **Buy number**
 
 **Your SMS Number**: `+1 (xxx) xxx-xxxx`
-
----
 
 ## Step 6: Configure Environment Variables
 
 Update your `.env` file with Twilio credentials:
 
-```bash
 # Twilio Messaging (for sending SMS)
-MSG_TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-MSG_TWILIO_AUTH_TOKEN=your_auth_token_here
-MSG_TWILIO_FROM_E164=+18068081288
+xxx=xxx-xxx-xxxx
 
 # Server configuration
-VOICE_HOST=voice.boba-demo.deepgram.com
-```
 
 **Restart your application** after updating `.env`.
-
----
-
----
 
 ## Troubleshooting
 
@@ -198,12 +162,10 @@ VOICE_HOST=voice.boba-demo.deepgram.com
 **Solutions:**
 
 1. **Check webhook URL:**
-   ```bash
    # Must be accessible
    curl -X POST https://your-domain.com/voice
-   
+
    # Should return valid TwiML
-   ```
 
 2. **Check webhook logs** in Twilio Console:
    - Monitor → Logs → Calls
@@ -217,41 +179,28 @@ VOICE_HOST=voice.boba-demo.deepgram.com
    - Firewall blocking Twilio IPs
 
 4. **Test locally with ngrok:**
-   ```bash
-   ngrok http 8000
    # Use ngrok URL in Twilio webhook
-   ```
 
 ### Issue: No Audio on Call
 
 **Check these:**
 
 1. **WebSocket URL correct:**
-   ```
    wss://your-domain.com/twilio (not ws://)
-   ```
 
 2. **Server logs:**
-   ```bash
    sudo journalctl -u bobarista -f
    # Look for WebSocket connection errors
-   ```
 
 3. **Deepgram API key valid:**
-   ```bash
    # Check .env file
    cat /opt/bobarista/.env | grep DEEPGRAM
-   ```
 
 ### Issue: SMS Not Sending
 
-**Check these:**
-
 1. **Twilio credentials correct:**
-   ```bash
    # Verify in .env
    cat .env | grep MSG_TWILIO
-   ```
 
 2. **Phone number has SMS capability:**
    - Twilio Console → Phone Numbers
@@ -269,25 +218,12 @@ VOICE_HOST=voice.boba-demo.deepgram.com
 ### Issue: Call Quality Problems
 
 1. **Check Deepgram model:**
-   ```
-   AGENT_STT_MODEL=nova-3
-   AGENT_TTS_MODEL=aura-2-odysseus-en
-   ```
 
 2. **Check server resources:**
-   ```bash
    htop  # Check CPU/memory usage
-   ```
 
 3. **Check network latency:**
-   ```bash
    ping deepgram.com
-   ```
-
-
----
-
-## Next Steps
 
 Now that Twilio is configured:
 
@@ -295,4 +231,3 @@ Now that Twilio is configured:
 - 🏗️ [Understand Architecture](05-architecture.md)
 - 🧪 [Test Your System](../README.md#quick-test)
 
----
