@@ -19,6 +19,173 @@ from .send_sms import send_ready_sms
 
 http_router = APIRouter()
 
+# --- Landing Page HTML ---
+INDEX_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧋 Deepgram BobaRista - Voice Ordering System</title>
+    <style>
+        :root { color-scheme: light dark; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+        .header { text-align: center; margin-bottom: 40px; }
+        .header h1 { font-size: 2.5rem; color: #2d3748; margin-bottom: 10px; }
+        .header .emoji { font-size: 3rem; display: block; margin-bottom: 10px; }
+        .header p { color: #718096; font-size: 1.1rem; margin-bottom: 20px; }
+        .phone-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 25px;
+        }
+        .info-card {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            color: white;
+            text-align: center;
+        }
+        .info-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        .info-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            text-decoration: none;
+            display: block;
+            letter-spacing: 0.5px;
+        }
+        .info-number:hover {
+            opacity: 0.9;
+        }
+        .endpoints { display: grid; gap: 20px; }
+        .endpoint {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: block;
+        }
+        .endpoint:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+            transform: translateY(-2px);
+        }
+        .endpoint-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .endpoint-icon { font-size: 1.5rem; }
+        .endpoint-description { color: #718096; font-size: 0.95rem; margin-bottom: 12px; }
+        .endpoint-url {
+            font-family: 'Courier New', monospace;
+            background: #f7fafc;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            color: #667eea;
+            word-break: break-all;
+        }
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #4a5568;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .api-endpoint { background: #f7fafc; border-left: 4px solid #667eea; }
+        .api-endpoint:hover { background: white; }
+        @media (max-width: 600px) {
+            .container { padding: 20px; }
+            .header h1 { font-size: 1.8rem; }
+            .endpoint-title { font-size: 1.1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <span class="emoji">🧋</span>
+            <h1>Deepgram BobaRista</h1>
+            <p>Voice Ordering System</p>
+            <div class="phone-info">
+                <div class="info-card">
+                    <div class="info-label">📞 Call to Place Order</div>
+                    <a href="tel:+18887628114" class="info-number">(888) 762-8114</a>
+                </div>
+                <div class="info-card">
+                    <div class="info-label">📱 Order Updates From</div>
+                    <div class="info-number">+1 (806) 808-1288</div>
+                </div>
+            </div>
+        </div>
+        <div class="endpoints">
+            <div class="section-title">🖥️ User Interfaces</div>
+            <a href="/orders" class="endpoint">
+                <div class="endpoint-title"><span class="endpoint-icon">📺</span>Orders TV (Big Screen Display)</div>
+                <div class="endpoint-description">Live dashboard showing all in-progress orders for display screens</div>
+                <div class="endpoint-url">https://voice.boba-demo.deepgram.com/orders</div>
+            </a>
+            <a href="/barista" class="endpoint">
+                <div class="endpoint-title"><span class="endpoint-icon">👨‍🍳</span>Barista Console (Staff Interface)</div>
+                <div class="endpoint-description">Staff interface to view order details and mark drinks as ready (sends SMS)</div>
+                <div class="endpoint-url">https://voice.boba-demo.deepgram.com/barista</div>
+            </a>
+            <div class="section-title">🔌 API Endpoints</div>
+            <a href="/orders.json" class="endpoint api-endpoint">
+                <div class="endpoint-title"><span class="endpoint-icon">📋</span>Orders JSON API</div>
+                <div class="endpoint-description">Recent orders data in JSON format for integrations</div>
+                <div class="endpoint-url">https://voice.boba-demo.deepgram.com/orders.json</div>
+            </a>
+            <div class="endpoint api-endpoint">
+                <div class="endpoint-title"><span class="endpoint-icon">☎️</span>Twilio Voice Webhook</div>
+                <div class="endpoint-description">TwiML endpoint for incoming calls (configured in Twilio)</div>
+                <div class="endpoint-url">https://voice.boba-demo.deepgram.com/voice</div>
+            </div>
+            <div class="endpoint api-endpoint">
+                <div class="endpoint-title"><span class="endpoint-icon">🔄</span>WebSocket for Twilio</div>
+                <div class="endpoint-description">Real-time audio streaming between Twilio and Deepgram</div>
+                <div class="endpoint-url">wss://voice.boba-demo.deepgram.com/twilio</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>"""
+
+@http_router.get("/")
+def index():
+    return HTMLResponse(INDEX_HTML)
+
 @http_router.post("/voice")
 def voice_twiml():
     # Read public host from env; fallback for local testing
@@ -131,7 +298,7 @@ BARISTA_HTML = """<!doctype html>
 </head>
 <body>
   <h1>🧋 Barista Console</h1>
-  <p class="muted">Mark orders as done to text the customer that it’s ready for pickup.</p>
+  <p class="muted">Mark orders as done to text the customer that it's ready for pickup.</p>
 
   <table id="tbl">
     <thead>

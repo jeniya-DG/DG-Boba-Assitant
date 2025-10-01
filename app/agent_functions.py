@@ -8,6 +8,8 @@ from .events import publish
 session_state: Dict[str, Any] = {
     "phone_number": None,
     "order_number": None,   # set after checkout
+    "phone_confirmed": False,  # track if phone was explicitly confirmed
+    "received_sms_sent": False,  # track if SMS was already sent
     # staged-but-not-confirmed drink
     "pending_item": None,   # {"flavor":..., "toppings":[...], "sweetness":..., "ice":..., "addons":[...]}
 }
@@ -105,9 +107,10 @@ def _wrap_checkout_order(name: str | None = None, phone: str | None = None):
         })
         # Publish to dashboards
         publish({"type": "order_created", "order_number": result["order_number"], "status": "received"})
-        # Cache session markers
+        # Cache session markers and mark phone as confirmed
         if result.get("phone"):
             session_state["phone_number"] = result["phone"]
+            session_state["phone_confirmed"] = True
         if result.get("order_number"):
             session_state["order_number"] = result["order_number"]
     return result
@@ -115,6 +118,7 @@ def _wrap_checkout_order(name: str | None = None, phone: str | None = None):
 def _save_phone_number(phone: str):
     normalized = bl.normalize_phone(phone)
     session_state["phone_number"] = normalized
+    session_state["phone_confirmed"] = True
     return {"ok": True, "phone": normalized}
 
 def _order_is_placed():
