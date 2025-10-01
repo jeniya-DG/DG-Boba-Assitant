@@ -5,137 +5,259 @@ Customers call a phone number, place their order naturally through voice convers
 
 ---
 
-
-
 ## ✨ Features
 
-- ☎️ **Voice Ordering** - Natural conversation via Twilio + Deepgram Agent
-- 🧠 **Conversational AI** - Menu navigation, cart management, checkout
-- 📲 **SMS Notifications** - Order confirmation + pickup ready alerts
-- 📺 **Live Dashboards** - Real-time order tracking for staff and displays
-- 🔄 **Staged Confirmation** - Prevents accidental orders with two-step verification
-- 📦 **Containerized** - Easy deployment with Podman/Docker
+- ☎️ **Voice Ordering** via Twilio phone calls + Deepgram Realtime Agent
+- 🧠 **Conversational AI** with natural language understanding
+  - Menu navigation and recommendations
+  - Cart management with staged confirmation flow
+  - Order checkout and status tracking
+- 📲 **SMS Notifications** 
+  - Order confirmation immediately after checkout
+  - Pickup notification when barista marks order ready
+- 📺 **Orders TV Dashboard** (`/orders`) - Large display for in-progress orders
+- 👨‍🍳 **Barista Console** (`/barista`) - Staff interface to view details and mark orders ready
+- 🔄 **Real-time Updates** via Server-Sent Events (SSE)
+- 📦 **Containerized** with Podman/Docker, published to [quay.io](https://quay.io/repository/jeniya26/deepgram_bobarista)
 
 ---
 
 ## 🚀 Quick Start
 
-### Local Development (5 minutes)
+### Option 1: Local Development (Podman + ngrok)
 
 ```bash
-# 1. Clone and configure
-git clone <repository-url>
-cd deepgram-bobarista
+# 1. Copy env file and fill in your API keys
 cp sample.env.txt .env
-# Edit .env with your API keys
 
-# 2. Start with Podman
+# 2. Start the app locally (builds and runs container)
 ./podman-start.sh
 
-# 3. Expose with ngrok
+# 3. Expose to internet with ngrok
 ngrok http 8000
 ```
 
-📖 **[Full Local Setup Guide →](documentations/LOCAL_DEVELOPMENT.md)**
+💡 Copy the ngrok HTTPS URL (e.g., `https://abc123.ngrok-free.app`) into `.env` as `VOICE_HOST`, then configure your Twilio Voice Webhook to:
 
-### Production Deployment
-
-```bash
-# Deploy to AWS EC2 with systemd + Nginx + SSL
-ssh ubuntu@your-server
-git clone <repository-url> /opt/bobarista
-cd /opt/bobarista
-# ... follow deployment guide
+```
+https://<your-ngrok-url>/voice
 ```
 
-📖 **[Complete Deployment Guide →](documentations/DEPLOYMENT.md)**
+### Option 2: Production Deployment (AWS EC2)
+
+See the **[Complete Deployment Tutorial](documentations/04-deployment.md)** for step-by-step instructions on:
+- Setting up AWS EC2 with Ubuntu
+- Configuring Twilio phone numbers and webhooks
+- Installing SSL certificates with Let's Encrypt
+- Setting up Nginx reverse proxy
+- Running as a systemd service
+
+**Current Production Setup:**
+- **Server**: AWS EC2 (Ubuntu 22.04)
+- **Domain**: `voice.boba-demo.deepgram.com`
+- **SSL**: Let's Encrypt certificate with auto-renewal
+- **Reverse Proxy**: Nginx with WebSocket support
+
+---
+
+## 📂 Project Architecture
+
+```
+app/
+├── main.py              # FastAPI entrypoint
+├── app_factory.py       # Application factory with startup/shutdown hooks
+├── settings.py          # Configuration, prompts, Deepgram agent settings
+├── http_routes.py       # HTTP routes: TwiML, dashboards, barista console, SSE
+├── ws_bridge.py         # WebSocket bridge: Twilio ↔ Deepgram audio streaming
+├── agent_client.py      # Deepgram Agent API client connection
+├── agent_functions.py   # AI tool definitions with state management
+├── business_logic.py    # Core menu, cart, checkout, order management
+├── orders_store.py      # Thread-safe JSON-backed order persistence
+├── events.py            # Pub/sub system for real-time dashboard updates
+├── audio.py             # Audio resampling (µ-law 8kHz ↔ Linear16 48kHz/24kHz)
+├── send_sms.py          # Twilio SMS notifications
+└── orders.json          # Order storage (auto-reset on startup)
+
+documentations/          # Complete documentation
+├── 01-getting-started.md
+├── 02-ec2-setup.md
+├── 03-twilio-setup.md
+├── 04-deployment.md
+├── 05-architecture.md
+├── 06-api-reference.md
+├── 07-troubleshooting.md
+└── 08-development.md
+
+Containerfile            # Podman/Docker build recipe  
+podman-start.sh          # Local dev: build and run container  
+podman-stop.sh           # Local dev: stop and cleanup  
+requirements.txt         # Python dependencies  
+sample.env.txt           # Environment variable template  
+```
 
 ---
 
 ## 📚 Documentation
 
-### Setup Guides
-- **[Local Development](documentations/LOCAL_DEVELOPMENT.md)** - Podman + ngrok setup
-- **[AWS EC2 Deployment](documentations/DEPLOYMENT.md)** - Production deployment with SSL
-- **[Twilio Configuration](documentations/TWILIO_SETUP.md)** - Phone numbers & webhooks
-
-### Technical Reference
-- **[System Architecture](documentations/ARCHITECTURE.md)** - How it works under the hood
-- **[API Reference](documentations/API_REFERENCE.md)** - Endpoints & usage
-- **[Troubleshooting](documentations/TROUBLESHOOTING.md)** - Common issues & solutions
-
----
-
-## 📂 Project Structure
-
-```
-app/
-├── main.py              # FastAPI entrypoint
-├── app_factory.py       # Application lifecycle management
-├── settings.py          # Configuration & AI prompts
-├── http_routes.py       # Web routes & dashboards
-├── ws_bridge.py         # Twilio ↔ Deepgram audio bridge
-├── agent_client.py      # Deepgram Agent API client
-├── agent_functions.py   # AI tools (menu, cart, checkout)
-├── business_logic.py    # Order management logic
-├── orders_store.py      # JSON-based order storage
-├── events.py            # Real-time event system (SSE)
-├── audio.py             # Audio format conversion
-└── send_sms.py          # Twilio SMS notifications
-
-documentations/          # Detailed setup guides
-Containerfile           # Podman/Docker image
-requirements.txt        # Python dependencies
-sample.env.txt          # Environment template
-```
+| Guide | Description |
+|-------|-------------|
+| [Getting Started](documentations/01-getting-started.md) | Local development setup with Podman + ngrok |
+| [EC2 Setup](documentations/02-ec2-setup.md) | AWS EC2 instance configuration |
+| [Twilio Setup](documentations/03-twilio-setup.md) | Complete Twilio phone & webhook configuration |
+| [Deployment](documentations/04-deployment.md) | Production deployment guide |
+| [Architecture](documentations/05-architecture.md) | System design & component deep dive |
+| [API Reference](documentations/06-api-reference.md) | All endpoints & examples |
+| [Troubleshooting](documentations/07-troubleshooting.md) | Common issues & solutions |
+| [Development](documentations/08-development.md) | Contributing & development workflow |
 
 ---
 
-## 🎯 How It Works (Quick Overview)
+## 🎯 How It Works
 
 ```
-Customer calls → Twilio receives → WebSocket to your server
-    ↓
-Audio streaming: Twilio ↔ Your Server ↔ Deepgram Agent
-    ↓
-AI processes speech and calls functions:
-  • add_to_cart (stage drink)
-  • confirm_pending_to_cart (add to cart)
-  • checkout_order (finalize & get order number)
-    ↓
-Order saved → SMS sent → Dashboard updates
-    ↓
-Barista marks ready → Pickup SMS sent
+Customer Dials 
+        ↓
+Twilio receives call → POST /voice webhook
+        ↓
+WebSocket connection established
+        ↓
+┌─────────────────────────────────────┐
+│  Twilio (µ-law 8kHz)                │
+│         ↕                           │
+│  Your Server (resampling)           │
+│         ↕                           │
+│  Deepgram Agent (Linear16 48kHz)    │
+│    • STT: nova-3                    │
+│    • Think: gemini-2.5-flash        │
+│    • TTS: aura-2-odysseus-en        │
+└─────────────────────────────────────┘
+        ↓
+AI calls functions: add_to_cart, checkout_order, etc.
+        ↓
+Order saved → SMS sent → Dashboard updated
+        ↓
+Barista marks ready → SMS sent
 ```
 
-📖 **[Detailed Architecture →](documentations/ARCHITECTURE.md)**
+See [Architecture Documentation](documentations/05-architecture.md) for detailed flow diagrams.
 
 ---
 
-## ⚙️ Key Technologies
+## 📝 Environment Variables
 
-- **[Deepgram Agent API](https://developers.deepgram.com)** - Conversational AI (STT + LLM + TTS)
-- **[Twilio](https://twilio.com)** - Phone calls & SMS
-- **[FastAPI](https://fastapi.tiangolo.com)** - High-performance web framework
-- **[Podman](https://podman.io)** - Container runtime
+Create a `.env` file:
+
+```bash
+# Server
+VOICE_HOST=voice.boba-demo.deepgram.com
+
+# Deepgram
+DEEPGRAM_API_KEY=your_key_here
+
+# Agent Models
+AGENT_TTS_MODEL=aura-2-odysseus-en
+AGENT_STT_MODEL=nova-3
+AGENT_THINK_MODEL=gemini-2.5-flash
+
+# Twilio Messaging (SMS)
+MSG_TWILIO_ACCOUNT_SID=ACxxxxxx
+MSG_TWILIO_AUTH_TOKEN=your_token
+MSG_TWILIO_FROM_E164=+xxxxx
+
+
+# Twilio Calling (SMS)
+TWILIO_ACCOUNT_SID=*****
+TWILIO_AUTH_TOKEN=*****
+
+# Your Twilio phone number (the number customers will call)
+TWILIO_FROM_E164=*****
+
+# Test destination number (for making test calls)
+TWILIO_TO_E164=*****
+```
+
+See `sample.env.txt` for complete template.
 
 ---
 
 ## 🧪 Quick Test
 
-1. **Call**: Dial [+1 (888) 762-8114](tel:+18887628114)
-2. **Order**: "I want a taro milk tea with boba"
-3. **Confirm**: Say "yes" when asked
-4. **Phone**: Provide your phone number
-5. **Check**: Receive SMS with order number
-6. **Monitor**: Visit https://voice.boba-demo.deepgram.com/orders
-7. **Complete**: Barista marks ready → Receive pickup SMS
+```bash
+# 1. Call the number
+Call: +1 (xxx) xxx-xxxx
+
+# 2. Order something
+Say: "I want a taro milk tea with boba"
+
+# 3. Check dashboards
+Visit: https://voice.boba-demo.deepgram.com/orders
+Visit: https://voice.boba-demo.deepgram.com/barista
+```
 
 ---
 
-## 🆘 Need Help?
+## 🛠️ Local Development
 
-- **Setup Issues?** → [Troubleshooting Guide](documentations/TROUBLESHOOTING.md)
-- **API Questions?** → [API Reference](documentations/API_REFERENCE.md)
-- **Architecture Questions?** → [System Architecture](documentations/ARCHITECTURE.md)
+```bash
+# Start container
+./podman-start.sh
 
+# View logs
+podman logs -f boba-voice
+
+# Stop
+./podman-stop.sh
+```
+
+See [Getting Started Guide](documentations/01-getting-started.md) for detailed instructions.
+
+---
+
+## 🚀 Production Deployment
+
+```bash
+# Quick deploy on EC2
+git clone <repo> /opt/bobarista
+cd /opt/bobarista
+python3.11 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp sample.env.txt .env
+# Edit .env with your credentials
+sudo systemctl enable bobarista
+sudo systemctl start bobarista
+```
+
+See [Deployment Guide](documentations/04-deployment.md) for complete setup including Nginx, SSL, and systemd.
+
+---
+
+## 📊 API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /` | Landing page |
+| `GET /orders` | TV display (large numbers) |
+| `GET /barista` | Staff console |
+| `POST /voice` | Twilio webhook |
+| `WS /twilio` | Audio streaming |
+| `GET /orders.json` | Orders data |
+
+See [API Reference](documentations/06-api-reference.md) for complete documentation.
+
+---
+
+## 🔧 Troubleshooting
+
+**Call ends immediately?**
+- Check Twilio webhook URL
+- Verify server accessibility
+
+**No SMS received?**
+- Check Twilio credentials
+- Verify phone number capabilities
+
+See [Troubleshooting Guide](documentations/07-troubleshooting.md) for detailed solutions.
+
+
+---
